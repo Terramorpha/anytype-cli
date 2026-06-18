@@ -1,8 +1,11 @@
 package core
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/anyproto/anytype-heart/pb"
 	"github.com/anyproto/anytype-heart/pb/service"
@@ -30,6 +33,69 @@ type NotifItem struct {
 	CreatorName string
 	Text        string
 	HasMention  bool
+}
+
+// DefaultAckPath is where consumed (acked) notification ids are recorded.
+func DefaultAckPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".anytype", "notify-acked")
+}
+
+// LoadAckSet reads the set of acknowledged notification ids.
+func LoadAckSet(path string) (map[string]bool, error) {
+	acked := map[string]bool{}
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return acked, nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		if line := sc.Text(); line != "" {
+			acked[line] = true
+		}
+	}
+	return acked, sc.Err()
+}
+
+// MarkAcked records ids as consumed (idempotent append).
+func MarkAcked(path string, ids []string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	for _, id := range ids {
+		if _, err := fmt.Fprintln(f, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// FormatNotifItem renders a pending item one-line, leading with its id so it can
+// be passed to `notify done <id>`.
+func FormatNotifItem(it NotifItem) string {
+	switch it.Kind {
+	case "notification":
+		return fmt.Sprintf("id=%s [notification] %s", it.Id, it.Text)
+	case "page-mention":
+		return fmt.Sprintf("id=%s [page-mention space=%s (%s)] you were mentioned",
+			it.Id, it.SpaceId, it.ChatName)
+	default: // chat
+		mention := ""
+		if it.HasMention {
+			mention = " @mention"
+		}
+		return fmt.Sprintf("id=%s [space=%s chat=%s (%s)%s] %s: %s",
+			it.Id, it.SpaceId, it.ChatId, it.ChatName, mention, it.CreatorName, it.Text)
+	}
 }
 
 // ListAllChats enumerates every chat in every space the account belongs to.
