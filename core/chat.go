@@ -135,12 +135,13 @@ func participantNames(ctx context.Context, client service.ClientCommandsClient, 
 }
 
 // SendChatMessage posts a plain-text message to a chat.
-func SendChatMessage(chatId, text string) (string, error) {
+func SendChatMessage(chatId, text, replyTo string) (string, error) {
 	var messageId string
 	err := GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
 		resp, err := client.ChatAddMessage(ctx, &pb.RpcChatAddMessageRequest{
 			ChatObjectId: chatId,
 			Message: &model.ChatMessage{
+				ReplyToMessageId: replyTo,
 				Message: &model.ChatMessageMessageContent{
 					Text:  text,
 					Style: model.BlockContentText_Paragraph,

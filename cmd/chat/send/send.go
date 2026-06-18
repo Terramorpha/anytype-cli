@@ -10,7 +10,7 @@ import (
 )
 
 func NewSendCmd() *cobra.Command {
-	var spaceId, chatId string
+	var spaceId, chatId, replyTo string
 
 	cmd := &cobra.Command{
 		Use:   "send <message>",
@@ -23,7 +23,7 @@ func NewSendCmd() *cobra.Command {
 			}
 
 			text := strings.Join(args, " ")
-			id, err := core.SendChatMessage(chatId, text)
+			id, err := core.SendChatMessage(chatId, text, replyTo)
 			if err != nil {
 				return output.Error("Failed to send message: %w", err)
 			}
@@ -34,5 +34,6 @@ func NewSendCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&spaceId, "space", "", "space id (or set ANYTYPE_SPACE)")
 	cmd.Flags().StringVar(&chatId, "chat", "", "chat object id (defaults to the space's chat, or ANYTYPE_CHAT)")
+	cmd.Flags().StringVar(&replyTo, "reply-to", "", "message id to reply to (threaded answer)")
 	return cmd
 }
