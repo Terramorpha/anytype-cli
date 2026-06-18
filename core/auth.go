@@ -32,7 +32,7 @@ func Authenticate(accountKey, rootPath, apiAddr, networkConfigPath string) error
 		rootPath = config.GetDataDir()
 	}
 	if apiAddr == "" {
-		apiAddr = config.DefaultAPIAddress
+		apiAddr = config.APIAddr()
 	}
 
 	networkMode := determineNetworkMode(networkConfigPath)
@@ -266,7 +266,7 @@ func CreateWallet(name, rootPath, apiAddr, networkConfigPath string) (string, st
 		rootPath = config.GetDataDir()
 	}
 	if apiAddr == "" {
-		apiAddr = config.DefaultAPIAddress
+		apiAddr = config.APIAddr()
 	}
 
 	networkMode := determineNetworkMode(networkConfigPath)

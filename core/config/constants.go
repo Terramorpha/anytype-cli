@@ -55,7 +55,28 @@ func GetWorkDir() string {
 	}
 }
 
+// envOr returns the environment variable value or a default.
+func envOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+// GRPCAddr / GRPCWebAddr / APIAddr / GRPCDNSAddr return the listen/dial
+// addresses, overridable per-instance via ANYTYPE_GRPC_PORT / ANYTYPE_GRPCWEB_PORT
+// / ANYTYPE_API_PORT so multiple servers can run side by side.
+func GRPCAddr() string    { return LocalhostIP + ":" + envOr("ANYTYPE_GRPC_PORT", GRPCPort) }
+func GRPCWebAddr() string { return LocalhostIP + ":" + envOr("ANYTYPE_GRPCWEB_PORT", GRPCWebPort) }
+func APIAddr() string     { return LocalhostIP + ":" + envOr("ANYTYPE_API_PORT", APIPort) }
+func GRPCDNSAddr() string { return "dns:///" + GRPCAddr() }
+
 func GetConfigDir() string {
+	// A per-instance DATA_PATH also relocates config (accountId, techSpaceId),
+	// so a second instance doesn't share the default account's config.
+	if dataPath := os.Getenv("DATA_PATH"); dataPath != "" {
+		return dataPath
+	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return ""

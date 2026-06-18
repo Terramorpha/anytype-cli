@@ -26,7 +26,7 @@ func NewServeCmd() *cobra.Command {
 		RunE:    runServer,
 	}
 
-	cmd.Flags().StringVar(&listenAddress, "listen-address", config.DefaultAPIAddress, "API listen address in `host:port` format")
+	cmd.Flags().StringVar(&listenAddress, "listen-address", config.APIAddr(), "API listen address in `host:port` format")
 	cmd.Flags().BoolVarP(&quietMode, "quiet", "q", false, "Suppress most output (only errors)")
 	cmd.Flags().BoolVarP(&verboseMode, "verbose", "v", false, "Show detailed output (debug level)")
 	cmd.MarkFlagsMutuallyExclusive("quiet", "verbose")

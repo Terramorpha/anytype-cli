@@ -35,11 +35,11 @@ func GetServiceWithAddress(apiAddr string) (service.Service, error) {
 
 	effectiveAddr := apiAddr
 	if effectiveAddr == "" {
-		effectiveAddr = config.DefaultAPIAddress
+		effectiveAddr = config.APIAddr()
 	}
 
 	args := []string{"serve"}
-	if effectiveAddr != config.DefaultAPIAddress {
+	if effectiveAddr != config.APIAddr() {
 		args = append(args, "--listen-address", effectiveAddr)
 	}
 
@@ -115,7 +115,7 @@ func (p *Program) run() {
 	defer p.wg.Done()
 	defer close(p.startCh)
 
-	if err := p.server.Start(config.DefaultGRPCAddress, config.DefaultGRPCWebAddress); err != nil {
+	if err := p.server.Start(config.GRPCAddr(), config.GRPCWebAddr()); err != nil {
 		p.startErr = err
 		return
 	}

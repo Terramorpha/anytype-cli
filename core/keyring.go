@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"os"
 
 	"github.com/anyproto/anytype-cli/core/config"
 	"github.com/zalando/go-keyring"
@@ -21,6 +22,11 @@ var (
 // isKeyringAvailable checks if the keyring is accessible
 func isKeyringAvailable() bool {
 	if keyringUnavailable {
+		return false
+	}
+	// A second instance can opt out of the shared system keyring (single creds
+	// slot) and keep its creds in its own DATA_PATH config.json instead.
+	if os.Getenv("ANYTYPE_NO_KEYRING") != "" {
 		return false
 	}
 

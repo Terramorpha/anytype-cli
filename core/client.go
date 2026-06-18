@@ -31,7 +31,7 @@ var (
 func GetGRPCClient() (service.ClientCommandsClient, error) {
 	once.Do(func() {
 		var err error
-		grpcConn, err = grpc.NewClient(config.GRPCDNSAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		grpcConn, err = grpc.NewClient(config.GRPCDNSAddr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			initErr = fmt.Errorf("failed to connect to gRPC server: %w", err)
 			return

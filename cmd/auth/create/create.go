@@ -76,7 +76,7 @@ func NewCreateCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&rootPath, "root-path", "", "Root path for account data")
-	cmd.Flags().StringVar(&listenAddress, "listen-address", config.DefaultAPIAddress, "API listen address in `host:port` format")
+	cmd.Flags().StringVar(&listenAddress, "listen-address", config.APIAddr(), "API listen address in `host:port` format")
 	cmd.Flags().StringVar(&networkConfigPath, "network-config", "", "Path to custom network configuration YAML (for self-hosted)")
 
 	return cmd

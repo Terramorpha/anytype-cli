@@ -26,7 +26,7 @@ func NewInstallCmd() *cobra.Command {
 			}
 
 			output.Success("anytype service installed successfully")
-			if listenAddress != config.DefaultAPIAddress {
+			if listenAddress != config.APIAddr() {
 				output.Info("API will listen on %s", listenAddress)
 			}
 			output.Print("\nTo manage the service:")
@@ -39,7 +39,7 @@ func NewInstallCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&listenAddress, "listen-address", config.DefaultAPIAddress, "API listen address in `host:port` format")
+	cmd.Flags().StringVar(&listenAddress, "listen-address", config.APIAddr(), "API listen address in `host:port` format")
 
 	return cmd
 }
