@@ -167,5 +167,123 @@ func DrainNotifications(seen map[string]bool) ([]NotifItem, error) {
 		}
 	}
 
+	// Page mentions: objects that link/mention my member object show up in its
+	// backlinks set. New source objects are surfaced (Phase 1: set-keyed by
+	// source id, so a repeat mention from the same object is not re-surfaced).
+	for spaceId, pid := range myParticipants() {
+		for _, srcId := range readBacklinks(spaceId, pid) {
+			if srcId == "" || seen[srcId] {
+				continue
+			}
+			items = append(items, NotifItem{
+				Kind:     "page-mention",
+				Id:       srcId,
+				SpaceId:  spaceId,
+				ChatName: resolveObjectName(spaceId, srcId),
+			})
+		}
+	}
+
 	return items, nil
+}
+
+// myParticipants returns this account's participant object id in each space.
+func myParticipants() map[string]string {
+	identity, _ := config.GetAccountIdFromConfig()
+	out := map[string]string{}
+	spaces, err := ListSpaces()
+	if err != nil {
+		return out
+	}
+	for _, sp := range spaces {
+		spaceId := sp.SpaceId
+		_ = GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
+			resp, err := client.ObjectSearch(ctx, &pb.RpcObjectSearchRequest{
+				SpaceId: spaceId,
+				Filters: []*model.BlockContentDataviewFilter{{
+					RelationKey: bundle.RelationKeyResolvedLayout.String(),
+					Condition:   model.BlockContentDataviewFilter_Equal,
+					Value:       pbtypes.Int64(int64(model.ObjectType_participant)),
+				}},
+				Keys: []string{bundle.RelationKeyId.String(), bundle.RelationKeyIdentity.String()},
+			})
+			if err != nil || resp.Error != nil {
+				return nil
+			}
+			for _, r := range resp.Records {
+				if pbtypes.GetString(r, bundle.RelationKeyIdentity.String()) == identity {
+					out[spaceId] = pbtypes.GetString(r, bundle.RelationKeyId.String())
+				}
+			}
+			return nil
+		})
+	}
+	return out
+}
+
+// readBacklinks returns the source object ids that link/mention the given object.
+func readBacklinks(spaceId, objectId string) []string {
+	var links []string
+	_ = GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
+		resp, err := client.ObjectSearch(ctx, &pb.RpcObjectSearchRequest{
+			SpaceId: spaceId,
+			Filters: []*model.BlockContentDataviewFilter{{
+				RelationKey: bundle.RelationKeyId.String(),
+				Condition:   model.BlockContentDataviewFilter_Equal,
+				Value:       pbtypes.String(objectId),
+			}},
+			Keys: []string{bundle.RelationKeyBacklinks.String()},
+		})
+		if err != nil || resp.Error != nil || len(resp.Records) == 0 {
+			return nil
+		}
+		links = pbtypes.GetStringList(resp.Records[0], bundle.RelationKeyBacklinks.String())
+		return nil
+	})
+	return links
+}
+
+// resolveObjectName returns an object's display name (best-effort).
+func resolveObjectName(spaceId, objectId string) string {
+	name := objectId
+	_ = GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
+		resp, err := client.ObjectSearch(ctx, &pb.RpcObjectSearchRequest{
+			SpaceId: spaceId,
+			Filters: []*model.BlockContentDataviewFilter{{
+				RelationKey: bundle.RelationKeyId.String(),
+				Condition:   model.BlockContentDataviewFilter_Equal,
+				Value:       pbtypes.String(objectId),
+			}},
+			Keys: []string{bundle.RelationKeyName.String()},
+		})
+		if err != nil || resp.Error != nil || len(resp.Records) == 0 {
+			return nil
+		}
+		if n := pbtypes.GetString(resp.Records[0], bundle.RelationKeyName.String()); n != "" {
+			name = n
+		}
+		return nil
+	})
+	return name
+}
+
+// SubscribeMemberObjects registers a push subscription on this account's member
+// object in each space, so a backlinks change (a page mentioning me) emits an
+// ObjectDetailsAmend on the session event stream — the wake for page mentions.
+func SubscribeMemberObjects(subId string) error {
+	for spaceId, pid := range myParticipants() {
+		sp, id := spaceId, pid
+		if err := GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
+			_, err := client.ObjectSubscribeIds(ctx, &pb.RpcObjectSubscribeIdsRequest{
+				SpaceId: sp,
+				SubId:   subId,
+				Ids:     []string{id},
+				Keys:    []string{bundle.RelationKeyBacklinks.String(), bundle.RelationKeyName.String()},
+			})
+			return err
+		}); err != nil {
+			return fmt.Errorf("failed to subscribe to member object: %w", err)
+		}
+	}
+	return nil
 }

@@ -55,6 +55,11 @@ func NewWaitCmd() *cobra.Command {
 			if err := core.SubscribeMessagePreviews(previewsSubId); err != nil {
 				return output.Error("%w", err)
 			}
+			// Push wake for page mentions: subscribe to my member object so a
+			// backlinks change emits an ObjectDetailsAmend on the same stream.
+			if err := core.SubscribeMemberObjects(previewsSubId + "-member"); err != nil {
+				output.Warning("page-mention subscription unavailable: %v", err)
+			}
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -63,7 +68,10 @@ func NewWaitCmd() *cobra.Command {
 			go func() { <-sig; cancel() }()
 
 			isWake := func(m *pb.EventMessage) bool {
-				return m.GetChatAdd() != nil || m.GetNotificationSend() != nil
+				return m.GetChatAdd() != nil ||
+					m.GetNotificationSend() != nil ||
+					m.GetObjectDetailsAmend() != nil ||
+					m.GetObjectDetailsSet() != nil
 			}
 
 			// Drain authoritative state until a pass yields nothing new, recording
@@ -112,6 +120,11 @@ func NewWaitCmd() *cobra.Command {
 func printItem(it core.NotifItem) {
 	if it.Kind == "notification" {
 		output.Print("[notification id=%s] %s", it.Id, it.Text)
+		return
+	}
+	if it.Kind == "page-mention" {
+		output.Print("[page-mention space=%s object=%s (%s)] you were mentioned",
+			it.SpaceId, it.Id, it.ChatName)
 		return
 	}
 	tag := fmt.Sprintf("space=%s chat=%s (%s)", it.SpaceId, it.ChatId, it.ChatName)
