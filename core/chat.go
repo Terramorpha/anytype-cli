@@ -20,6 +20,7 @@ type ChatMessageItem struct {
 	CreatorName string
 	Text        string
 	CreatedAt   int64
+	HasMention  bool
 }
 
 // ResolveChatId finds the chat object in a space (the space's "General" chat).
@@ -168,10 +169,11 @@ func GetChatMessages(spaceId, chatId string, limit int) ([]ChatMessageItem, erro
 // resolving the creator name from the given identity->name map.
 func FlattenChatMessage(m *model.ChatMessage, names map[string]string) ChatMessageItem {
 	item := ChatMessageItem{
-		Id:        m.Id,
-		OrderId:   m.OrderId,
-		Creator:   m.Creator,
-		CreatedAt: m.CreatedAt,
+		Id:         m.Id,
+		OrderId:    m.OrderId,
+		Creator:    m.Creator,
+		CreatedAt:  m.CreatedAt,
+		HasMention: m.HasMention,
 	}
 	if m.Message != nil {
 		item.Text = m.Message.Text

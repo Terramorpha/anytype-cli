@@ -14,6 +14,7 @@ import (
 	"github.com/anyproto/anytype-cli/cmd/auth"
 	"github.com/anyproto/anytype-cli/cmd/chat"
 	"github.com/anyproto/anytype-cli/cmd/config"
+	"github.com/anyproto/anytype-cli/cmd/notify"
 	"github.com/anyproto/anytype-cli/cmd/profile"
 	"github.com/anyproto/anytype-cli/cmd/serve"
 	"github.com/anyproto/anytype-cli/cmd/service"
@@ -71,6 +72,7 @@ func init() {
 		auth.NewAuthCmd(),
 		chat.NewChatCmd(),
 		config.NewConfigCmd(),
+		notify.NewNotifyCmd(),
 		profile.NewProfileCmd(),
 		serve.NewServeCmd(),
 		service.NewServiceCmd(),
