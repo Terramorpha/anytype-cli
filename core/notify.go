@@ -26,14 +26,15 @@ type ChatRef struct {
 // NotifItem is a single drained notification (a chat message, page mention, or
 // local notification).
 type NotifItem struct {
-	Kind        string `json:"kind"` // "chat" | "page-mention" | "notification"
-	Id          string `json:"id"`
-	SpaceId     string `json:"space_id,omitempty"`
-	ChatId      string `json:"chat_id,omitempty"`
-	ChatName    string `json:"chat_name,omitempty"`
-	CreatorName string `json:"creator_name,omitempty"`
-	Text        string `json:"text,omitempty"`
-	HasMention  bool   `json:"has_mention,omitempty"`
+	Kind        string       `json:"kind"` // "chat" | "page-mention" | "notification"
+	Id          string       `json:"id"`
+	SpaceId     string       `json:"space_id,omitempty"`
+	ChatId      string       `json:"chat_id,omitempty"`
+	ChatName    string       `json:"chat_name,omitempty"`
+	CreatorName string       `json:"creator_name,omitempty"`
+	Text        string       `json:"text,omitempty"`
+	HasMention  bool         `json:"has_mention,omitempty"`
+	Attachments []Attachment `json:"attachments,omitempty"`
 }
 
 // DefaultAckPath is where consumed (acked) notification ids are recorded.
@@ -94,9 +95,11 @@ func ListAllChats() ([]ChatRef, error) {
 				SpaceId: spaceId,
 				Filters: []*model.BlockContentDataviewFilter{
 					{
+						// Space chats (chatDerived) AND page "discussion" sections,
+						// which are chat objects with the distinct discussion layout.
 						RelationKey: bundle.RelationKeyResolvedLayout.String(),
-						Condition:   model.BlockContentDataviewFilter_Equal,
-						Value:       pbtypes.Int64(int64(model.ObjectType_chatDerived)),
+						Condition:   model.BlockContentDataviewFilter_In,
+						Value:       pbtypes.IntList(int(model.ObjectType_chatDerived), int(model.ObjectType_discussion)),
 					},
 					{
 						RelationKey: bundle.RelationKeyIsArchived.String(),
@@ -180,7 +183,7 @@ func DrainNotifications(seen map[string]bool) ([]NotifItem, error) {
 
 	var items []NotifItem
 	for _, ch := range chats {
-		msgs, err := GetChatMessages(ch.SpaceId, ch.ChatId, 30)
+		msgs, err := GetChatMessages(ch.SpaceId, ch.ChatId, 100)
 		if err != nil {
 			continue // transient; next drain reconciles
 		}
@@ -197,6 +200,7 @@ func DrainNotifications(seen map[string]bool) ([]NotifItem, error) {
 				CreatorName: m.CreatorName,
 				Text:        m.Text,
 				HasMention:  m.HasMention,
+				Attachments: m.Attachments,
 			})
 		}
 	}

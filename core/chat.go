@@ -21,6 +21,24 @@ type ChatMessageItem struct {
 	Text        string
 	CreatedAt   int64
 	HasMention  bool
+	Attachments []Attachment
+}
+
+// Attachment is a chat-message attachment (a linked object, file, or image).
+type Attachment struct {
+	Target string `json:"target"`
+	Type   string `json:"type"`
+}
+
+func attachmentTypeString(t model.ChatMessageAttachmentAttachmentType) string {
+	switch t {
+	case model.ChatMessageAttachment_IMAGE:
+		return "image"
+	case model.ChatMessageAttachment_LINK:
+		return "link"
+	default:
+		return "file"
+	}
 }
 
 // ResolveChatId finds the chat object in a space (the space's "General" chat).
@@ -182,6 +200,12 @@ func FlattenChatMessage(m *model.ChatMessage, names map[string]string) ChatMessa
 		item.CreatorName = n
 	} else {
 		item.CreatorName = m.Creator
+	}
+	for _, a := range m.Attachments {
+		item.Attachments = append(item.Attachments, Attachment{
+			Target: a.Target,
+			Type:   attachmentTypeString(a.Type),
+		})
 	}
 	return item
 }
