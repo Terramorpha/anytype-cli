@@ -23,16 +23,17 @@ type ChatRef struct {
 	Name    string
 }
 
-// NotifItem is a single drained notification (a chat message or a local notification).
+// NotifItem is a single drained notification (a chat message, page mention, or
+// local notification).
 type NotifItem struct {
-	Kind        string // "chat" | "notification"
-	Id          string
-	SpaceId     string
-	ChatId      string
-	ChatName    string
-	CreatorName string
-	Text        string
-	HasMention  bool
+	Kind        string `json:"kind"` // "chat" | "page-mention" | "notification"
+	Id          string `json:"id"`
+	SpaceId     string `json:"space_id,omitempty"`
+	ChatId      string `json:"chat_id,omitempty"`
+	ChatName    string `json:"chat_name,omitempty"`
+	CreatorName string `json:"creator_name,omitempty"`
+	Text        string `json:"text,omitempty"`
+	HasMention  bool   `json:"has_mention,omitempty"`
 }
 
 // DefaultAckPath is where consumed (acked) notification ids are recorded.
@@ -77,25 +78,6 @@ func MarkAcked(path string, ids []string) error {
 		}
 	}
 	return nil
-}
-
-// FormatNotifItem renders a pending item one-line, leading with its id so it can
-// be passed to `notify done <id>`.
-func FormatNotifItem(it NotifItem) string {
-	switch it.Kind {
-	case "notification":
-		return fmt.Sprintf("id=%s [notification] %s", it.Id, it.Text)
-	case "page-mention":
-		return fmt.Sprintf("id=%s [page-mention space=%s (%s)] you were mentioned",
-			it.Id, it.SpaceId, it.ChatName)
-	default: // chat
-		mention := ""
-		if it.HasMention {
-			mention = " @mention"
-		}
-		return fmt.Sprintf("id=%s [space=%s chat=%s (%s)%s] %s: %s",
-			it.Id, it.SpaceId, it.ChatId, it.ChatName, mention, it.CreatorName, it.Text)
-	}
 }
 
 // ListAllChats enumerates every chat in every space the account belongs to.
@@ -233,24 +215,65 @@ func DrainNotifications(seen map[string]bool) ([]NotifItem, error) {
 		}
 	}
 
-	// Page mentions: objects that link/mention my member object show up in its
-	// backlinks set. New source objects are surfaced (Phase 1: set-keyed by
-	// source id, so a repeat mention from the same object is not re-surfaced).
+	// Page mentions: find objects whose outgoing `links` include my member
+	// object — i.e. pages that mention me. (Reading the member's own backlinks
+	// is unreliable for system objects; the forward query over normal objects is
+	// well-indexed.) Phase 1: keyed by source id, so a repeat mention from the
+	// same object is not re-surfaced.
 	for spaceId, pid := range myParticipants() {
-		for _, srcId := range readBacklinks(spaceId, pid) {
-			if srcId == "" || seen[srcId] {
+		for _, src := range findLinkingObjects(spaceId, pid) {
+			if src.Id == "" || seen[src.Id] {
 				continue
 			}
 			items = append(items, NotifItem{
 				Kind:     "page-mention",
-				Id:       srcId,
+				Id:       src.Id,
 				SpaceId:  spaceId,
-				ChatName: resolveObjectName(spaceId, srcId),
+				ChatName: src.Name,
 			})
 		}
 	}
 
 	return items, nil
+}
+
+type objectRef struct {
+	Id   string
+	Name string
+}
+
+// findLinkingObjects returns the objects that link/mention targetId, read from
+// targetId's `backlinks` relation. ObjectShow is used (not ObjectSearch) because
+// the computed backlinks relation is only populated by ObjectShow; the same call
+// also returns the linked objects as dependencies, giving their names.
+func findLinkingObjects(spaceId, targetId string) []objectRef {
+	var refs []objectRef
+	_ = GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
+		resp, err := client.ObjectShow(ctx, &pb.RpcObjectShowRequest{
+			SpaceId:                            spaceId,
+			ObjectId:                           targetId,
+			IncludeRelationsAsDependentObjects: true,
+		})
+		if err != nil || resp.Error != nil && resp.Error.Code != pb.RpcObjectShowResponseError_NULL {
+			return nil
+		}
+		if resp.ObjectView == nil {
+			return nil
+		}
+		names := map[string]string{}
+		var backlinks []string
+		for _, d := range resp.ObjectView.Details {
+			names[d.Id] = pbtypes.GetString(d.Details, bundle.RelationKeyName.String())
+			if d.Id == targetId {
+				backlinks = pbtypes.GetStringList(d.Details, bundle.RelationKeyBacklinks.String())
+			}
+		}
+		for _, id := range backlinks {
+			refs = append(refs, objectRef{Id: id, Name: names[id]})
+		}
+		return nil
+	})
+	return refs
 }
 
 // myParticipants returns this account's participant object id in each space.
@@ -273,7 +296,7 @@ func myParticipants() map[string]string {
 				}},
 				Keys: []string{bundle.RelationKeyId.String(), bundle.RelationKeyIdentity.String()},
 			})
-			if err != nil || resp.Error != nil {
+			if err != nil || (resp.Error != nil && resp.Error.Code != pb.RpcObjectSearchResponseError_NULL) {
 				return nil
 			}
 			for _, r := range resp.Records {
@@ -285,52 +308,6 @@ func myParticipants() map[string]string {
 		})
 	}
 	return out
-}
-
-// readBacklinks returns the source object ids that link/mention the given object.
-func readBacklinks(spaceId, objectId string) []string {
-	var links []string
-	_ = GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
-		resp, err := client.ObjectSearch(ctx, &pb.RpcObjectSearchRequest{
-			SpaceId: spaceId,
-			Filters: []*model.BlockContentDataviewFilter{{
-				RelationKey: bundle.RelationKeyId.String(),
-				Condition:   model.BlockContentDataviewFilter_Equal,
-				Value:       pbtypes.String(objectId),
-			}},
-			Keys: []string{bundle.RelationKeyBacklinks.String()},
-		})
-		if err != nil || resp.Error != nil || len(resp.Records) == 0 {
-			return nil
-		}
-		links = pbtypes.GetStringList(resp.Records[0], bundle.RelationKeyBacklinks.String())
-		return nil
-	})
-	return links
-}
-
-// resolveObjectName returns an object's display name (best-effort).
-func resolveObjectName(spaceId, objectId string) string {
-	name := objectId
-	_ = GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
-		resp, err := client.ObjectSearch(ctx, &pb.RpcObjectSearchRequest{
-			SpaceId: spaceId,
-			Filters: []*model.BlockContentDataviewFilter{{
-				RelationKey: bundle.RelationKeyId.String(),
-				Condition:   model.BlockContentDataviewFilter_Equal,
-				Value:       pbtypes.String(objectId),
-			}},
-			Keys: []string{bundle.RelationKeyName.String()},
-		})
-		if err != nil || resp.Error != nil || len(resp.Records) == 0 {
-			return nil
-		}
-		if n := pbtypes.GetString(resp.Records[0], bundle.RelationKeyName.String()); n != "" {
-			name = n
-		}
-		return nil
-	})
-	return name
 }
 
 // SubscribeMemberObjects registers a push subscription on this account's member

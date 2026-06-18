@@ -2,13 +2,13 @@ package wait
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
-
-	"github.com/anyproto/anytype-heart/pb"
 
 	"github.com/anyproto/anytype-cli/core"
 	"github.com/anyproto/anytype-cli/core/output"
@@ -16,15 +16,21 @@ import (
 
 const previewsSubId = "anytype-cli-notify"
 
+// reconcileInterval bounds how long a pending item can hide if a push wake is
+// missed. The event stream is edge-triggered and lossy, so we treat any event
+// as a wake (low latency) but also re-drain on this interval (the level-
+// triggered backstop that guarantees nothing is missed).
+const reconcileInterval = 15 * time.Second
+
 func NewWaitCmd() *cobra.Command {
 	var statePath string
 
 	cmd := &cobra.Command{
 		Use:   "wait",
 		Short: "Block until there are pending notifications, then show them",
-		Long: "Blocks on the server event stream (no polling). When something is\n" +
-			"pending, prints the full pending list (chat messages, mentions, page\n" +
-			"mentions, notifications), each leading with its id, and exits WITHOUT\n" +
+		Long: "Blocks on the server event stream (waking on any event) with a periodic\n" +
+			"reconcile, then prints the full pending list (chat messages, mentions,\n" +
+			"page mentions, notifications), each leading with its id, and exits WITHOUT\n" +
 			"consuming them. Acknowledge with `notify done <id...>` once handled, so a\n" +
 			"crash before acking re-surfaces rather than drops (at-least-once).",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -53,13 +59,6 @@ func NewWaitCmd() *cobra.Command {
 			signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 			go func() { <-sig; cancel() }()
 
-			isWake := func(m *pb.EventMessage) bool {
-				return m.GetChatAdd() != nil ||
-					m.GetNotificationSend() != nil ||
-					m.GetObjectDetailsAmend() != nil ||
-					m.GetObjectDetailsSet() != nil
-			}
-
 			for {
 				acked, err := core.LoadAckSet(statePath)
 				if err != nil {
@@ -70,18 +69,33 @@ func NewWaitCmd() *cobra.Command {
 					output.Warning("drain error: %v", err)
 				}
 				if len(items) > 0 {
-					for _, it := range items {
-						output.Print("%s", core.FormatNotifItem(it))
+					out, err := json.Marshal(items)
+					if err != nil {
+						return output.Error("failed to encode notifications: %w", err)
 					}
+					output.Print("%s", out)
 					return nil // peek only; consume via `notify done`
 				}
-				if _, err := er.WaitForEvent(ctx, isWake); err != nil {
-					return nil // cancelled / stream closed
+
+				// Wait for any event (fast path) or the reconcile deadline (backstop).
+				waitCtx, waitCancel := context.WithTimeout(ctx, reconcileInterval)
+				_, werr := er.WaitOne(waitCtx)
+				waitCancel()
+				if ctx.Err() != nil {
+					return nil // interrupted
 				}
+				if werr != nil && !isDeadline(werr) {
+					return output.Error("event stream closed: %w", werr)
+				}
+				// event arrived or reconcile tick: loop and re-drain
 			}
 		},
 	}
 
 	cmd.Flags().StringVar(&statePath, "state", "", "ack-set file (default ~/.anytype/notify-acked)")
 	return cmd
+}
+
+func isDeadline(err error) bool {
+	return err == context.DeadlineExceeded
 }

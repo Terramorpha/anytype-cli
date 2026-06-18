@@ -1,6 +1,8 @@
 package done
 
 import (
+	"encoding/json"
+
 	"github.com/spf13/cobra"
 
 	"github.com/anyproto/anytype-cli/core"
@@ -22,7 +24,8 @@ func NewDoneCmd() *cobra.Command {
 			if err := core.MarkAcked(statePath, args); err != nil {
 				return output.Error("failed to record ack: %w", err)
 			}
-			output.Success("Acknowledged %d notification(s)", len(args))
+			out, _ := json.Marshal(map[string]any{"acknowledged": len(args), "ids": args})
+			output.Print("%s", out)
 			return nil
 		},
 	}

@@ -1,6 +1,8 @@
 package list
 
 import (
+	"encoding/json"
+
 	"github.com/spf13/cobra"
 
 	"github.com/anyproto/anytype-cli/core"
@@ -12,7 +14,7 @@ func NewListCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "Show pending (unacknowledged) notifications without blocking",
+		Short: "Show pending (unacknowledged) notifications as JSON, without blocking",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if statePath == "" {
 				statePath = core.DefaultAckPath()
@@ -25,13 +27,14 @@ func NewListCmd() *cobra.Command {
 			if err != nil {
 				return output.Error("failed to read notifications: %w", err)
 			}
-			if len(items) == 0 {
-				output.Info("No pending notifications")
-				return nil
+			if items == nil {
+				items = []core.NotifItem{}
 			}
-			for _, it := range items {
-				output.Print("%s", core.FormatNotifItem(it))
+			out, err := json.Marshal(items)
+			if err != nil {
+				return output.Error("failed to encode notifications: %w", err)
 			}
+			output.Print("%s", out)
 			return nil
 		},
 	}
