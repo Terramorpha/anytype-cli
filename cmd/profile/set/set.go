@@ -15,9 +15,6 @@ func NewSetCmd() *cobra.Command {
 		Short: "Set the profile display name and/or icon",
 		Long:  "Set the account profile's display name and/or icon image.\n\nExample:\n  anytype profile set --name Claude --icon ./star.png",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if name == "" && icon == "" {
-				return output.Error("provide --name and/or --icon")
-			}
 			if err := core.SetProfile(name, icon); err != nil {
 				return output.Error("Failed to set profile: %w", err)
 			}

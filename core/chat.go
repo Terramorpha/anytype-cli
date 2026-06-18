@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/anyproto/anytype-heart/pb"
 	"github.com/anyproto/anytype-heart/pb/service"
@@ -34,6 +35,19 @@ func ResolveChatId(spaceId string) (string, string, error) {
 					Condition:   model.BlockContentDataviewFilter_Equal,
 					Value:       pbtypes.Int64(int64(model.ObjectType_chatDerived)),
 				},
+				{
+					RelationKey: bundle.RelationKeyIsArchived.String(),
+					Condition:   model.BlockContentDataviewFilter_NotEqual,
+					Value:       pbtypes.Bool(true),
+				},
+			},
+			// Deterministic pick: oldest chat first, so a multi-chat space
+			// resolves to the original/primary chat rather than an arbitrary one.
+			Sorts: []*model.BlockContentDataviewSort{
+				{
+					RelationKey: bundle.RelationKeyCreatedDate.String(),
+					Type:        model.BlockContentDataviewSort_Asc,
+				},
 			},
 			Keys: []string{bundle.RelationKeyId.String(), bundle.RelationKeyName.String()},
 		})
@@ -53,9 +67,16 @@ func ResolveChatId(spaceId string) (string, string, error) {
 	return chatId, name, err
 }
 
-// ResolveChatTarget validates the space id and fills the chat id (resolving the
-// space's chat when chatId is empty).
+// ResolveChatTarget resolves the space and chat to operate on. Empty arguments
+// fall back to the ANYTYPE_SPACE / ANYTYPE_CHAT environment variables, and the
+// chat id is resolved from the space's default chat when still empty.
 func ResolveChatTarget(spaceId, chatId string) (string, string, error) {
+	if spaceId == "" {
+		spaceId = os.Getenv("ANYTYPE_SPACE")
+	}
+	if chatId == "" {
+		chatId = os.Getenv("ANYTYPE_CHAT")
+	}
 	if spaceId == "" {
 		return "", "", fmt.Errorf("space id required (use --space or set ANYTYPE_SPACE)")
 	}

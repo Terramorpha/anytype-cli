@@ -24,12 +24,6 @@ func NewWatchCmd() *cobra.Command {
 		Short: "Watch a space chat and print new messages as they arrive",
 		Long:  "Streams new messages from the server (no polling) until interrupted (Ctrl-C).",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if spaceId == "" {
-				spaceId = os.Getenv("ANYTYPE_SPACE")
-			}
-			if chatId == "" {
-				chatId = os.Getenv("ANYTYPE_CHAT")
-			}
 			spaceId, chatId, err := core.ResolveChatTarget(spaceId, chatId)
 			if err != nil {
 				return output.Error("%w", err)
@@ -84,7 +78,13 @@ func NewWatchCmd() *cobra.Command {
 					output.Info("Stopped.")
 					return nil
 				}
-				msg := core.FlattenChatMessage(ev.GetChatAdd().Message, names)
+				// Validate at the trust boundary: events come from the server,
+				// so a body-less ChatAdd is possible and must not panic the watcher.
+				ca := ev.GetChatAdd()
+				if ca == nil || ca.Message == nil {
+					continue
+				}
+				msg := core.FlattenChatMessage(ca.Message, names)
 				output.Print("%s: %s", msg.CreatorName, msg.Text)
 			}
 		},

@@ -1,7 +1,6 @@
 package send
 
 import (
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -18,13 +17,7 @@ func NewSendCmd() *cobra.Command {
 		Short: "Send a message to a space chat",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if spaceId == "" {
-				spaceId = os.Getenv("ANYTYPE_SPACE")
-			}
-			if chatId == "" {
-				chatId = os.Getenv("ANYTYPE_CHAT")
-			}
-			spaceId, chatId, err := core.ResolveChatTarget(spaceId, chatId)
+			_, chatId, err := core.ResolveChatTarget(spaceId, chatId)
 			if err != nil {
 				return output.Error("%w", err)
 			}
@@ -34,7 +27,6 @@ func NewSendCmd() *cobra.Command {
 			if err != nil {
 				return output.Error("Failed to send message: %w", err)
 			}
-			_ = spaceId
 			output.Success("Message sent (%s)", id)
 			return nil
 		},

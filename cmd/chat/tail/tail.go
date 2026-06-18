@@ -1,8 +1,6 @@
 package tail
 
 import (
-	"os"
-
 	"github.com/spf13/cobra"
 
 	"github.com/anyproto/anytype-cli/core"
@@ -17,12 +15,6 @@ func NewTailCmd() *cobra.Command {
 		Use:   "tail",
 		Short: "Show the most recent messages in a space chat",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if spaceId == "" {
-				spaceId = os.Getenv("ANYTYPE_SPACE")
-			}
-			if chatId == "" {
-				chatId = os.Getenv("ANYTYPE_CHAT")
-			}
 			spaceId, chatId, err := core.ResolveChatTarget(spaceId, chatId)
 			if err != nil {
 				return output.Error("%w", err)
