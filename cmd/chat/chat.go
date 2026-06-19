@@ -5,6 +5,7 @@ import (
 
 	chatSendCmd "github.com/anyproto/anytype-cli/cmd/chat/send"
 	chatTailCmd "github.com/anyproto/anytype-cli/cmd/chat/tail"
+	chatUploadCmd "github.com/anyproto/anytype-cli/cmd/chat/upload"
 	chatWatchCmd "github.com/anyproto/anytype-cli/cmd/chat/watch"
 )
 
@@ -20,6 +21,7 @@ func NewChatCmd() *cobra.Command {
 
 	cmd.AddCommand(chatSendCmd.NewSendCmd())
 	cmd.AddCommand(chatTailCmd.NewTailCmd())
+	cmd.AddCommand(chatUploadCmd.NewUploadCmd())
 	cmd.AddCommand(chatWatchCmd.NewWatchCmd())
 
 	return cmd

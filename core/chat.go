@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/anyproto/anytype-heart/pb"
 	"github.com/anyproto/anytype-heart/pb/service"
@@ -134,8 +136,64 @@ func participantNames(ctx context.Context, client service.ClientCommandsClient, 
 	return names
 }
 
-// SendChatMessage posts a plain-text message to a chat.
-func SendChatMessage(chatId, text, replyTo string) (string, error) {
+// attachmentTypeEnum maps a string ("image"/"link"/"file") to the gRPC enum.
+func attachmentTypeEnum(s string) model.ChatMessageAttachmentAttachmentType {
+	switch s {
+	case "image":
+		return model.ChatMessageAttachment_IMAGE
+	case "link":
+		return model.ChatMessageAttachment_LINK
+	default:
+		return model.ChatMessageAttachment_FILE
+	}
+}
+
+var imageExts = map[string]bool{
+	".png": true, ".jpg": true, ".jpeg": true, ".gif": true,
+	".webp": true, ".bmp": true, ".svg": true,
+}
+
+// UploadFileToChat uploads a local file into the space and ties it to the chat
+// via CreatedInContext (so it's filed under the chat, not orphaned). It returns
+// an Attachment ready to add to a message — typed "image" for image files,
+// otherwise "file".
+func UploadFileToChat(spaceId, chatId, path string) (Attachment, error) {
+	fileType := model.BlockContentFile_File
+	attType := "file"
+	if imageExts[strings.ToLower(filepath.Ext(path))] {
+		fileType = model.BlockContentFile_Image
+		attType = "image"
+	}
+	var att Attachment
+	err := GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
+		resp, err := client.FileUpload(ctx, &pb.RpcFileUploadRequest{
+			SpaceId:          spaceId,
+			LocalPath:        path,
+			Type:             fileType,
+			CreatedInContext: chatId,
+		})
+		if err != nil {
+			return fmt.Errorf("file upload: %w", err)
+		}
+		if resp.Error != nil && resp.Error.Code != pb.RpcFileUploadResponseError_NULL {
+			return fmt.Errorf("file upload error: %s", resp.Error.Description)
+		}
+		att = Attachment{Target: resp.ObjectId, Type: attType}
+		return nil
+	})
+	return att, err
+}
+
+// SendChatMessage posts a message to a chat, optionally with attachments
+// (each referencing an existing object by id with a render type).
+func SendChatMessage(chatId, text, replyTo string, attachments []Attachment) (string, error) {
+	var atts []*model.ChatMessageAttachment
+	for _, a := range attachments {
+		atts = append(atts, &model.ChatMessageAttachment{
+			Target: a.Target,
+			Type:   attachmentTypeEnum(a.Type),
+		})
+	}
 	var messageId string
 	err := GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
 		resp, err := client.ChatAddMessage(ctx, &pb.RpcChatAddMessageRequest{
@@ -146,6 +204,7 @@ func SendChatMessage(chatId, text, replyTo string) (string, error) {
 					Text:  text,
 					Style: model.BlockContentText_Paragraph,
 				},
+				Attachments: atts,
 			},
 		})
 		if err != nil {
