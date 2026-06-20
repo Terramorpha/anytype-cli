@@ -41,6 +41,8 @@ func NewToolsCmd() *cobra.Command {
 	cmd.AddCommand(newGetinviteCmd())
 	// files
 	cmd.AddCommand(newImgctxCmd())
+	// export
+	cmd.AddCommand(newBibexportCmd())
 
 	return cmd
 }
