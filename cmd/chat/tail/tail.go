@@ -30,6 +30,9 @@ func NewTailCmd() *cobra.Command {
 			}
 			for _, m := range msgs {
 				output.Print("%s: %s", m.CreatorName, m.Text)
+				for _, a := range m.Attachments {
+					output.Print("    [%s] %s", a.Type, a.Target)
+				}
 			}
 			return nil
 		},
