@@ -77,6 +77,14 @@ func newViewpropsCmd() *cobra.Command {
 				if dv == nil || len(dv.GetViews()) == 0 {
 					return fmt.Errorf("no dataview/views in %s", objectId)
 				}
+				// Register the requested relations on the dataview first, so the
+				// columns resolve even on a fresh set that only carries the system
+				// relations in its relation links.
+				if _, err := client.BlockDataviewRelationAdd(ctx, &pb.RpcBlockDataviewRelationAddRequest{
+					ContextId: objectId, BlockId: blockId, RelationKeys: want,
+				}); err != nil {
+					return err
+				}
 				visible := append([]string{"name"}, want...)
 				shown := map[string]bool{}
 				var rels []*model.BlockContentDataviewRelation
