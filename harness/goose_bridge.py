@@ -141,7 +141,11 @@ def main():
             space_id = it.get("space_id", ARGS.space)
             if ARGS.only_chat and chat_id != ARGS.only_chat:
                 continue
-            react_eyes(space_id, chat_id, it["id"])
+            # Don't eye every inbound message. Let Gemma decide whether the
+            # message is for her (the agent returns IGNORE otherwise), and only
+            # then claim it with 👀 — mirroring how senior Claude acks only the
+            # messages it actually engages with, rather than the wrapper reacting
+            # to everything automatically.
             user_text = f'{it.get("creator_name","?")}: {it.get("text","")}'
             session = "chat-" + chat_id          # per-chat memory
             try:
@@ -149,6 +153,8 @@ def main():
             except Exception as e:
                 print("goose run failed:", e, file=sys.stderr); continue  # leave un-acked -> retry
             if reply and reply.strip().upper() != "IGNORE":
+                # Gemma chose to engage: claim the message with 👀, then reply.
+                react_eyes(space_id, chat_id, it["id"])
                 sh("chat", "send", "--space", space_id, "--chat", chat_id,
                    "--reply-to", it["id"], reply)
                 print(f"replied ({len(reply)} chars)")
