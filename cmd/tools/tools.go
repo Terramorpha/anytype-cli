@@ -33,6 +33,7 @@ func NewToolsCmd() *cobra.Command {
 	// lookup / inspection (label -> id, id -> details)
 	cmd.AddCommand(newFindCmd())
 	cmd.AddCommand(newDescribeCmd())
+	cmd.AddCommand(newQueryCmd())
 	// dataviews / views
 	cmd.AddCommand(newDvinspectCmd())
 	cmd.AddCommand(newViewpropsCmd())
