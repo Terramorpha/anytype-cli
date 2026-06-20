@@ -3,8 +3,6 @@ package tools
 import (
 	"context"
 	"fmt"
-	"os"
-	"text/tabwriter"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/spf13/cobra"
@@ -42,28 +40,31 @@ func newDescribeCmd() *cobra.Command {
 						break
 					}
 				}
+				type relInfo struct {
+					Key    string `json:"key"`
+					Format string `json:"format"`
+				}
+				out := map[string]any{"id": args[0]}
 				if det != nil {
-					fmt.Printf("name:        %s\n", pbtypes.GetString(det, bundle.RelationKeyName.String()))
-					lay := model.ObjectTypeLayout(pbtypes.GetInt64(det, bundle.RelationKeyResolvedLayout.String()))
-					fmt.Printf("layout:      %s\n", layoutName(lay))
-					fmt.Printf("type:        %s\n", pbtypes.GetString(det, bundle.RelationKeyType.String()))
-					for _, kk := range []struct{ label, key string }{
-						{"uniqueKey", bundle.RelationKeyUniqueKey.String()},
-						{"apiKey", bundle.RelationKeyApiObjectKey.String()},
-						{"relationKey", bundle.RelationKeyRelationKey.String()},
+					out["name"] = pbtypes.GetString(det, bundle.RelationKeyName.String())
+					out["layout"] = layoutName(model.ObjectTypeLayout(pbtypes.GetInt64(det, bundle.RelationKeyResolvedLayout.String())))
+					out["type"] = pbtypes.GetString(det, bundle.RelationKeyType.String())
+					for label, key := range map[string]string{
+						"uniqueKey":   bundle.RelationKeyUniqueKey.String(),
+						"apiKey":      bundle.RelationKeyApiObjectKey.String(),
+						"relationKey": bundle.RelationKeyRelationKey.String(),
 					} {
-						if v := pbtypes.GetString(det, kk.key); v != "" {
-							fmt.Printf("%-12s %s\n", kk.label+":", v)
+						if v := pbtypes.GetString(det, key); v != "" {
+							out[label] = v
 						}
 					}
 				}
-				fmt.Println("\nrelations on this object:")
-				w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-				fmt.Fprintln(w, "  KEY\tFORMAT")
+				rels := []relInfo{}
 				for _, rl := range show.ObjectView.GetRelationLinks() {
-					fmt.Fprintf(w, "  %s\t%s\n", rl.Key, model.RelationFormat(rl.Format))
+					rels = append(rels, relInfo{Key: rl.Key, Format: model.RelationFormat(rl.Format).String()})
 				}
-				return w.Flush()
+				out["relations"] = rels
+				return emit(out)
 			})
 		},
 	}

@@ -49,8 +49,7 @@ func newAddblockCmd() *cobra.Command {
 				if resp.Error != nil && resp.Error.Code != pb.RpcBlockCreateResponseError_NULL {
 					return fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Description)
 				}
-				fmt.Println("OK: block", resp.BlockId)
-				return nil
+				return emit(ok(map[string]any{"blockId": resp.BlockId}))
 			})
 		},
 	}
@@ -69,8 +68,7 @@ func newDelblockCmd() *cobra.Command {
 				}); err != nil {
 					return err
 				}
-				fmt.Println("deleted")
-				return nil
+				return emit(ok(map[string]any{"deleted": args[1:]}))
 			})
 		},
 	}
@@ -94,8 +92,7 @@ func newAppendmdCmd() *cobra.Command {
 				}); err != nil {
 					return err
 				}
-				fmt.Println("appended")
-				return nil
+				return emit(ok(map[string]any{"pageId": args[0]}))
 			})
 		},
 	}
@@ -113,37 +110,47 @@ func newBlockdumpCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				type blk struct {
+					Id   string `json:"id"`
+					Kind string `json:"kind"`
+				}
+				var detailKeys []string
 				for _, det := range s.ObjectView.GetDetails() {
 					for k := range det.GetDetails().GetFields() {
 						switch k {
 						case "coverId", "coverType", "iconImage", "iconEmoji":
-							fmt.Printf("DETAIL %s\n", k)
+							detailKeys = append(detailKeys, k)
 						}
 					}
 				}
+				blocks := []blk{}
 				for _, b := range s.ObjectView.GetBlocks() {
+					kind := ""
 					switch {
 					case b.GetText() != nil:
-						fmt.Printf("text/%v\n", b.GetText().Style)
+						kind = "text/" + b.GetText().Style.String()
 					case b.GetLink() != nil:
-						fmt.Println("LINK-to-object block")
+						kind = "link"
 					case b.GetDataview() != nil:
-						fmt.Println("DATAVIEW (inline set/board)")
+						kind = "dataview"
 					case b.GetLayout() != nil:
-						fmt.Printf("LAYOUT/%v\n", b.GetLayout().Style)
+						kind = "layout/" + b.GetLayout().Style.String()
 					case b.GetFile() != nil:
-						fmt.Println("file/media")
+						kind = "file"
 					case b.GetDiv() != nil:
-						fmt.Println("divider")
+						kind = "divider"
 					case b.GetBookmark() != nil:
-						fmt.Println("bookmark")
+						kind = "bookmark"
 					case b.GetRelation() != nil:
-						fmt.Println("relation-block")
+						kind = "relation"
 					case b.GetTableOfContents() != nil:
-						fmt.Println("toc")
+						kind = "toc"
+					default:
+						continue
 					}
+					blocks = append(blocks, blk{Id: b.Id, Kind: kind})
 				}
-				return nil
+				return emit(map[string]any{"id": args[0], "details": detailKeys, "blocks": blocks})
 			})
 		},
 	}
@@ -165,8 +172,8 @@ func newPagedeckCmd() *cobra.Command {
 				}}); err != nil {
 					return err
 				}
-				fmt.Println("cover set")
 				prev := ""
+				cards := []string{}
 				for _, o := range objs {
 					r, err := c.BlockCreate(ctx, &pb.RpcBlockCreateRequest{
 						ContextId: page, TargetId: prev, Position: model.Block_Bottom,
@@ -178,9 +185,9 @@ func newPagedeckCmd() *cobra.Command {
 						return err
 					}
 					prev = r.BlockId
-					fmt.Printf("card %s\n", o)
+					cards = append(cards, r.BlockId)
 				}
-				return nil
+				return emit(ok(map[string]any{"pageId": page, "coverSet": true, "cards": cards}))
 			})
 		},
 	}

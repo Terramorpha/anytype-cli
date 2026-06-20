@@ -37,8 +37,7 @@ func newImgctxCmd() *cobra.Command {
 				if resp.Error != nil && resp.Error.Code != pb.RpcObjectSetDetailsResponseError_NULL {
 					return fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Description)
 				}
-				fmt.Println("OK: createdInContext set on", fileId)
-				return nil
+				return emit(ok(map[string]any{"id": fileId, "createdInContext": ctxId}))
 			})
 		},
 	}

@@ -36,20 +36,37 @@ func newDvinspectCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				type relInfo struct {
+					Key    string `json:"key"`
+					Format string `json:"format"`
+				}
+				type viewInfo struct {
+					Id      string `json:"id"`
+					Name    string `json:"name"`
+					Type    string `json:"type"`
+					GroupBy string `json:"groupBy,omitempty"`
+				}
+				type dvInfo struct {
+					BlockId       string    `json:"blockId"`
+					RelationLinks []relInfo `json:"relationLinks"`
+					Views         []viewInfo `json:"views"`
+				}
+				dvs := []dvInfo{}
 				for _, b := range show.ObjectView.GetBlocks() {
 					d := b.GetDataview()
 					if d == nil {
 						continue
 					}
-					fmt.Println("RelationLinks on dataview:")
+					dv := dvInfo{BlockId: b.Id, RelationLinks: []relInfo{}, Views: []viewInfo{}}
 					for _, rl := range d.GetRelationLinks() {
-						fmt.Printf("  key=%q format=%v\n", rl.Key, rl.Format)
+						dv.RelationLinks = append(dv.RelationLinks, relInfo{Key: rl.Key, Format: rl.Format.String()})
 					}
 					for _, v := range d.GetViews() {
-						fmt.Printf("view %s name=%q type=%v GROUP=%q\n", v.Id, v.Name, v.Type, v.GroupRelationKey)
+						dv.Views = append(dv.Views, viewInfo{Id: v.Id, Name: v.Name, Type: v.Type.String(), GroupBy: v.GroupRelationKey})
 					}
+					dvs = append(dvs, dv)
 				}
-				return nil
+				return emit(dvs)
 			})
 		},
 	}
@@ -105,8 +122,7 @@ func newViewpropsCmd() *cobra.Command {
 				}); err != nil {
 					return err
 				}
-				fmt.Printf("OK: view %s (%s) now shows: %v\n", v.Id, v.Name, visible)
-				return nil
+				return emit(ok(map[string]any{"viewId": v.Id, "blockId": blockId, "visible": visible}))
 			})
 		},
 	}
@@ -150,8 +166,7 @@ func newKanbanCmd() *cobra.Command {
 				if resp.Error != nil && resp.Error.Code != pb.RpcBlockDataviewViewCreateResponseError_NULL {
 					return fmt.Errorf("ViewCreate: %s", resp.Error.Description)
 				}
-				fmt.Printf("OK: kanban view %s on block %s\n", resp.ViewId, blockId)
-				return nil
+				return emit(ok(map[string]any{"viewId": resp.ViewId, "blockId": blockId}))
 			})
 		},
 	}
@@ -179,8 +194,8 @@ func newDefaultkanbanCmd() *cobra.Command {
 				}); err != nil {
 					return err
 				}
+				var viewIds []string
 				for _, v := range dv.GetViews() {
-					fmt.Printf("view %s (%s) was type=%v\n", v.Id, v.Name, v.Type)
 					v.Type = model.BlockContentDataviewView_Kanban
 					v.GroupRelationKey = groupKey
 					if _, err := client.BlockDataviewViewUpdate(ctx, &pb.RpcBlockDataviewViewUpdateRequest{
@@ -188,9 +203,9 @@ func newDefaultkanbanCmd() *cobra.Command {
 					}); err != nil {
 						return err
 					}
-					fmt.Printf("OK: view %s is now Kanban grouped by %s\n", v.Id, groupKey)
+					viewIds = append(viewIds, v.Id)
 				}
-				return nil
+				return emit(ok(map[string]any{"blockId": blockId, "groupBy": groupKey, "views": viewIds}))
 			})
 		},
 	}
@@ -218,8 +233,8 @@ func newSetgroupCmd() *cobra.Command {
 				}); err != nil {
 					return err
 				}
+				var viewIds []string
 				for _, v := range dv.GetViews() {
-					fmt.Printf("view %s type=%v group=%q\n", v.Id, v.Type, v.GroupRelationKey)
 					if v.Type != model.BlockContentDataviewView_Kanban {
 						continue
 					}
@@ -229,9 +244,9 @@ func newSetgroupCmd() *cobra.Command {
 					}); err != nil {
 						return err
 					}
-					fmt.Printf("OK: set group-by=%s on view %s\n", groupKey, v.Id)
+					viewIds = append(viewIds, v.Id)
 				}
-				return nil
+				return emit(ok(map[string]any{"blockId": blockId, "groupBy": groupKey, "kanbanViews": viewIds}))
 			})
 		},
 	}
@@ -258,8 +273,7 @@ func newHidegroupCmd() *cobra.Command {
 				}); err != nil {
 					return err
 				}
-				fmt.Printf("group order set: %d visible + empty hidden\n", len(vis))
-				return nil
+				return emit(ok(map[string]any{"viewId": view, "visibleGroups": vis, "hiddenEmpty": true}))
 			})
 		},
 	}
@@ -286,8 +300,7 @@ func newSetqCmd() *cobra.Command {
 				if resp.Error != nil && resp.Error.Code != pb.RpcObjectSetDetailsResponseError_NULL {
 					return fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Description)
 				}
-				fmt.Println("OK: setOf set")
-				return nil
+				return emit(ok(map[string]any{"setId": setId, "setOf": typeId}))
 			})
 		},
 	}
@@ -316,8 +329,7 @@ func newEmbedsetCmd() *cobra.Command {
 				if resp.Error != nil && resp.Error.Code != pb.RpcBlockDataviewCreateFromExistingObjectResponseError_NULL {
 					return fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Description)
 				}
-				fmt.Printf("inline set embedded: block %s -> %s (views copied)\n", bid, set)
-				return nil
+				return emit(ok(map[string]any{"blockId": bid, "source": set}))
 			})
 		},
 	}

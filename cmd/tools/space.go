@@ -38,9 +38,11 @@ func newGeninviteCmd() *cobra.Command {
 				if resp.Error != nil && resp.Error.Code != pb.RpcSpaceInviteGenerateResponseError_NULL {
 					return fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Description)
 				}
-				fmt.Printf("cid=%s\nkey=%s\nlink=https://invite.any.coop/%s#%s\n",
-					resp.InviteCid, resp.InviteFileKey, resp.InviteCid, resp.InviteFileKey)
-				return nil
+				return emit(ok(map[string]any{
+					"cid":  resp.InviteCid,
+					"key":  resp.InviteFileKey,
+					"link": fmt.Sprintf("https://invite.any.coop/%s#%s", resp.InviteCid, resp.InviteFileKey),
+				}))
 			})
 		},
 	}
@@ -63,12 +65,15 @@ func newGetinviteCmd() *cobra.Command {
 					return fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Description)
 				}
 				if resp.InviteCid == "" {
-					fmt.Println("no current invite")
-					return nil
+					return emit(map[string]any{"invite": nil})
 				}
-				fmt.Printf("cid=%s\nkey=%s\ntype=%v perms=%v\nlink=https://invite.any.coop/%s#%s\n",
-					resp.InviteCid, resp.InviteFileKey, resp.InviteType, resp.Permissions, resp.InviteCid, resp.InviteFileKey)
-				return nil
+				return emit(ok(map[string]any{
+					"cid":         resp.InviteCid,
+					"key":         resp.InviteFileKey,
+					"inviteType":  resp.InviteType.String(),
+					"permissions": resp.Permissions.String(),
+					"link":        fmt.Sprintf("https://invite.any.coop/%s#%s", resp.InviteCid, resp.InviteFileKey),
+				}))
 			})
 		},
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -164,6 +163,5 @@ func setDetails(ctx context.Context, c service.ClientCommandsClient, objectId st
 	for _, d := range details {
 		keys = append(keys, d.Key)
 	}
-	fmt.Printf("OK: set %s on %s\n", strings.Join(keys, ", "), objectId)
-	return nil
+	return emit(ok(map[string]any{"id": objectId, "set": keys}))
 }

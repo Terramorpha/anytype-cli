@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
@@ -84,23 +83,26 @@ func newFindCmd() *cobra.Command {
 				if resp.Error != nil && resp.Error.Code != pb.RpcObjectSearchResponseError_NULL {
 					return fmt.Errorf("search: %s", resp.Error.Description)
 				}
-				if len(resp.Records) == 0 {
-					fmt.Println("no matches")
-					return nil
+				type match struct {
+					Id     string `json:"id"`
+					Name   string `json:"name"`
+					Layout string `json:"layout"`
+					Key    string `json:"key,omitempty"`
 				}
-				w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-				fmt.Fprintln(w, "ID\tLAYOUT\tKEY\tNAME")
+				matches := []match{}
 				for _, rec := range resp.Records {
-					id := pbtypes.GetString(rec, bundle.RelationKeyId.String())
-					name := pbtypes.GetString(rec, bundle.RelationKeyName.String())
-					lay := model.ObjectTypeLayout(pbtypes.GetInt64(rec, bundle.RelationKeyResolvedLayout.String()))
 					key := pbtypes.GetString(rec, bundle.RelationKeyRelationKey.String())
 					if key == "" {
 						key = pbtypes.GetString(rec, bundle.RelationKeyApiObjectKey.String())
 					}
-					fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", id, layoutName(lay), key, name)
+					matches = append(matches, match{
+						Id:     pbtypes.GetString(rec, bundle.RelationKeyId.String()),
+						Name:   pbtypes.GetString(rec, bundle.RelationKeyName.String()),
+						Layout: layoutName(model.ObjectTypeLayout(pbtypes.GetInt64(rec, bundle.RelationKeyResolvedLayout.String()))),
+						Key:    key,
+					})
 				}
-				return w.Flush()
+				return emit(matches)
 			})
 		},
 	}

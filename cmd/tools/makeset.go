@@ -60,8 +60,7 @@ func newMakesetCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("OK: created set %q -> %s\n", name, newId)
-			return nil
+			return emit(ok(map[string]any{"objectId": newId, "name": name}))
 		},
 	}
 	cmd.Flags().StringVar(&spaceId, "space", "", "space id (or ANYTYPE_SPACE)")
