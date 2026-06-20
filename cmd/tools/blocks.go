@@ -197,11 +197,18 @@ func newBlockdumpCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				type mk struct {
+					Type  string `json:"type"`
+					From  int32  `json:"from"`
+					To    int32  `json:"to"`
+					Param string `json:"param,omitempty"`
+				}
 				type blk struct {
 					Id       string   `json:"id"`
 					Kind     string   `json:"kind"`
 					Text     string   `json:"text,omitempty"`
 					Lang     string   `json:"lang,omitempty"`
+					Marks    []mk     `json:"marks,omitempty"`
 					Children []string `json:"children,omitempty"`
 				}
 				var detailKeys []string
@@ -252,7 +259,18 @@ func newBlockdumpCmd() *cobra.Command {
 							lang = v.GetStringValue()
 						}
 					}
-					blocks = append(blocks, blk{Id: b.Id, Kind: kind, Text: text, Lang: lang, Children: b.ChildrenIds})
+					var marks []mk
+					if t := b.GetText(); t != nil && t.GetMarks() != nil {
+						for _, m := range t.GetMarks().GetMarks() {
+							marks = append(marks, mk{
+								Type:  m.Type.String(),
+								From:  m.GetRange().GetFrom(),
+								To:    m.GetRange().GetTo(),
+								Param: m.Param,
+							})
+						}
+					}
+					blocks = append(blocks, blk{Id: b.Id, Kind: kind, Text: text, Lang: lang, Marks: marks, Children: b.ChildrenIds})
 				}
 				return emit(map[string]any{
 					"id":      args[0],
