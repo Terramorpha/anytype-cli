@@ -34,6 +34,7 @@ func NewToolsCmd() *cobra.Command {
 	cmd.AddCommand(newFindCmd())
 	cmd.AddCommand(newDescribeCmd())
 	cmd.AddCommand(newQueryCmd())
+	cmd.AddCommand(newSetpropCmd())
 	// dataviews / views
 	cmd.AddCommand(newDvinspectCmd())
 	cmd.AddCommand(newViewpropsCmd())
