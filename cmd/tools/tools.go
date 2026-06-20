@@ -29,6 +29,7 @@ func NewToolsCmd() *cobra.Command {
 	cmd.AddCommand(newBlockdumpCmd())
 	cmd.AddCommand(newPagedeckCmd())
 	cmd.AddCommand(newLinkCmd())
+	cmd.AddCommand(newImageCmd())
 	// lookup / inspection (label -> id, id -> details)
 	cmd.AddCommand(newFindCmd())
 	cmd.AddCommand(newDescribeCmd())
