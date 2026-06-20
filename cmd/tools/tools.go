@@ -41,6 +41,9 @@ func NewToolsCmd() *cobra.Command {
 	cmd.AddCommand(newGetinviteCmd())
 	// files
 	cmd.AddCommand(newImgctxCmd())
+	// icons / covers
+	cmd.AddCommand(newSeticonCmd())
+	cmd.AddCommand(newSetcoverCmd())
 	// sets / queries
 	cmd.AddCommand(newMakesetCmd())
 
