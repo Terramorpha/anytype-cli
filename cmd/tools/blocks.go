@@ -192,6 +192,7 @@ func newBlockdumpCmd() *cobra.Command {
 				type blk struct {
 					Id       string   `json:"id"`
 					Kind     string   `json:"kind"`
+					Text     string   `json:"text,omitempty"`
 					Children []string `json:"children,omitempty"`
 				}
 				var detailKeys []string
@@ -205,12 +206,13 @@ func newBlockdumpCmd() *cobra.Command {
 				}
 				blocks := []blk{}
 				for _, b := range s.ObjectView.GetBlocks() {
-					kind := ""
+					var kind, text string
 					switch {
 					case b.GetText() != nil:
 						kind = "text/" + b.GetText().Style.String()
+						text = b.GetText().Text
 					case b.GetLink() != nil:
-						kind = "link"
+						kind = "link->" + b.GetLink().TargetBlockId
 					case b.GetDataview() != nil:
 						kind = "dataview"
 					case b.GetLayout() != nil:
@@ -218,19 +220,31 @@ func newBlockdumpCmd() *cobra.Command {
 					case b.GetFile() != nil:
 						kind = "file"
 					case b.GetDiv() != nil:
-						kind = "divider"
+						kind = "divider/" + b.GetDiv().Style.String()
 					case b.GetBookmark() != nil:
 						kind = "bookmark"
 					case b.GetRelation() != nil:
 						kind = "relation"
 					case b.GetTableOfContents() != nil:
 						kind = "toc"
+					case b.GetSmartblock() != nil:
+						kind = "smartblock(root)"
+					case b.GetFeaturedRelations() != nil:
+						kind = "featuredRelations"
 					default:
-						continue
+						kind = "other"
 					}
-					blocks = append(blocks, blk{Id: b.Id, Kind: kind, Children: b.ChildrenIds})
+					if len(text) > 80 {
+						text = text[:77] + "..."
+					}
+					blocks = append(blocks, blk{Id: b.Id, Kind: kind, Text: text, Children: b.ChildrenIds})
 				}
-				return emit(map[string]any{"id": args[0], "details": detailKeys, "blocks": blocks})
+				return emit(map[string]any{
+					"id":      args[0],
+					"rootId":  s.ObjectView.RootId,
+					"details": detailKeys,
+					"blocks":  blocks,
+				})
 			})
 		},
 	}
