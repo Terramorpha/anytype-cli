@@ -27,6 +27,9 @@ func NewToolsCmd() *cobra.Command {
 	cmd.AddCommand(newAppendmdCmd())
 	cmd.AddCommand(newBlockdumpCmd())
 	cmd.AddCommand(newPagedeckCmd())
+	// lookup / inspection (label -> id, id -> details)
+	cmd.AddCommand(newFindCmd())
+	cmd.AddCommand(newDescribeCmd())
 	// dataviews / views
 	cmd.AddCommand(newDvinspectCmd())
 	cmd.AddCommand(newViewpropsCmd())

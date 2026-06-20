@@ -24,7 +24,9 @@ func newMakesetCmd() *cobra.Command {
 		Use:   "makeset",
 		Short: "Create a live Set/Query object over a type",
 		Long: "Create a Set whose source is a type, so it lists every object of that\n" +
-			"type as a live query.\n\nExample:\n  anytype tools makeset --type source --name Bibliography",
+			"type as a live query. Pass the type's object id (get it with\n" +
+			"`anytype tools find <name> --kind type`).\n\n" +
+			"Example:\n  anytype tools makeset --type bafyrei…sjt3i --name Bibliography",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if spaceId == "" {
 				spaceId = os.Getenv("ANYTYPE_SPACE")
@@ -33,14 +35,11 @@ func newMakesetCmd() *cobra.Command {
 				return fmt.Errorf("space id required (--space or ANYTYPE_SPACE)")
 			}
 			if name == "" {
-				name = typeKey + " (all)"
+				name = "All objects"
 			}
+			typeId := typeKey
 			var newId string
 			err := core.GRPCCall(func(ctx context.Context, c service.ClientCommandsClient) error {
-				typeId, err := resolveTypeId(ctx, c, spaceId, typeKey)
-				if err != nil {
-					return err
-				}
 				details := &types.Struct{Fields: map[string]*types.Value{
 					bundle.RelationKeyName.String(): pbtypes.String(name),
 				}}
@@ -66,8 +65,8 @@ func newMakesetCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&spaceId, "space", "", "space id (or ANYTYPE_SPACE)")
-	cmd.Flags().StringVar(&typeKey, "type", "", "type api key / name / id to query (required)")
-	cmd.Flags().StringVar(&name, "name", "", "name for the set (default: \"<type> (all)\")")
+	cmd.Flags().StringVar(&typeKey, "type", "", "type object id to query (required; see `tools find --kind type`)")
+	cmd.Flags().StringVar(&name, "name", "", "name for the set (default: \"All objects\")")
 	_ = cmd.MarkFlagRequired("type")
 	return cmd
 }
