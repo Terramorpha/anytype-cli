@@ -43,6 +43,8 @@ func NewToolsCmd() *cobra.Command {
 	cmd.AddCommand(newImgctxCmd())
 	// export
 	cmd.AddCommand(newBibexportCmd())
+	// sets / queries
+	cmd.AddCommand(newMakesetCmd())
 
 	return cmd
 }
