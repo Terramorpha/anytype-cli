@@ -20,6 +20,7 @@ import (
 	"github.com/anyproto/anytype-cli/cmd/service"
 	"github.com/anyproto/anytype-cli/cmd/shell"
 	"github.com/anyproto/anytype-cli/cmd/space"
+	"github.com/anyproto/anytype-cli/cmd/tools"
 	"github.com/anyproto/anytype-cli/cmd/update"
 	"github.com/anyproto/anytype-cli/cmd/version"
 )
@@ -78,6 +79,7 @@ func init() {
 		service.NewServiceCmd(),
 		shell.NewShellCmd(rootCmd),
 		space.NewSpaceCmd(),
+		tools.NewToolsCmd(),
 		update.NewUpdateCmd(),
 		version.NewVersionCmd(),
 	)
