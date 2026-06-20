@@ -15,23 +15,50 @@ import (
 	"github.com/anyproto/anytype-cli/core"
 )
 
-// addblock appends a text block to an object via BlockCreate — a block-level
-// edit below the markdown pipeline.
+// textStyles maps friendly --style names to the gRPC text style enum.
+var textStyles = map[string]model.BlockContentTextStyle{
+	"paragraph": model.BlockContentText_Paragraph,
+	"h1":        model.BlockContentText_Header1,
+	"header1":   model.BlockContentText_Header1,
+	"h2":        model.BlockContentText_Header2,
+	"header2":   model.BlockContentText_Header2,
+	"header":    model.BlockContentText_Header2, // backward-compat alias
+	"h3":        model.BlockContentText_Header3,
+	"header3":   model.BlockContentText_Header3,
+	"h4":        model.BlockContentText_Header4,
+	"header4":   model.BlockContentText_Header4,
+	"callout":   model.BlockContentText_Callout,
+	"quote":     model.BlockContentText_Quote,
+	"code":      model.BlockContentText_Code,
+	"checkbox":  model.BlockContentText_Checkbox,
+	"todo":      model.BlockContentText_Checkbox,
+	"toggle":    model.BlockContentText_Toggle,
+	"bulleted":  model.BlockContentText_Marked,
+	"bullet":    model.BlockContentText_Marked,
+	"numbered":  model.BlockContentText_Numbered,
+}
+
+// addblock appends a text block of any style to an object via BlockCreate.
 func newAddblockCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "addblock <objectId> <text> [header|paragraph|callout]",
-		Short: "Append a text block to an object (BlockCreate)",
-		Args:  cobra.RangeArgs(2, 3),
+	var style string
+	cmd := &cobra.Command{
+		Use:   "addblock <objectId> <text> [style]",
+		Short: "Append a text block of any style to an object (BlockCreate)",
+		Long: "Append a text block. Style via positional arg or --style:\n" +
+			"  paragraph, h1..h4, callout, quote, code, checkbox, toggle, bulleted, numbered",
+		Args: cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			objectId, text := args[0], args[1]
-			style := model.BlockContentText_Paragraph
-			if len(args) > 2 {
-				switch args[2] {
-				case "header":
-					style = model.BlockContentText_Header2
-				case "callout":
-					style = model.BlockContentText_Callout
-				}
+			styleName := style
+			if styleName == "" && len(args) > 2 {
+				styleName = args[2]
+			}
+			if styleName == "" {
+				styleName = "paragraph"
+			}
+			st, ok2 := textStyles[styleName]
+			if !ok2 {
+				return fmt.Errorf("unknown style %q", styleName)
 			}
 			return core.GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
 				resp, err := client.BlockCreate(ctx, &pb.RpcBlockCreateRequest{
@@ -39,9 +66,41 @@ func newAddblockCmd() *cobra.Command {
 					Position:  model.Block_Bottom,
 					Block: &model.Block{
 						Content: &model.BlockContentOfText{
-							Text: &model.BlockContentText{Text: text, Style: style},
+							Text: &model.BlockContentText{Text: text, Style: st},
 						},
 					},
+				})
+				if err != nil {
+					return err
+				}
+				if resp.Error != nil && resp.Error.Code != pb.RpcBlockCreateResponseError_NULL {
+					return fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Description)
+				}
+				return emit(ok(map[string]any{"blockId": resp.BlockId, "style": styleName}))
+			})
+		},
+	}
+	cmd.Flags().StringVar(&style, "style", "", "block style (overrides positional): paragraph|h1..h4|callout|quote|code|checkbox|toggle|bulleted|numbered")
+	return cmd
+}
+
+// divider appends a horizontal divider block (line or dots).
+func newDividerCmd() *cobra.Command {
+	var dots bool
+	cmd := &cobra.Command{
+		Use:   "divider <objectId>",
+		Short: "Append a divider block (--dots for a dotted divider)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			style := model.BlockContentDiv_Line
+			if dots {
+				style = model.BlockContentDiv_Dots
+			}
+			return core.GRPCCall(func(ctx context.Context, c service.ClientCommandsClient) error {
+				resp, err := c.BlockCreate(ctx, &pb.RpcBlockCreateRequest{
+					ContextId: args[0],
+					Position:  model.Block_Bottom,
+					Block:     &model.Block{Content: &model.BlockContentOfDiv{Div: &model.BlockContentDiv{Style: style}}},
 				})
 				if err != nil {
 					return err
@@ -53,6 +112,8 @@ func newAddblockCmd() *cobra.Command {
 			})
 		},
 	}
+	cmd.Flags().BoolVar(&dots, "dots", false, "use a dotted divider instead of a line")
+	return cmd
 }
 
 // delblock deletes one or more blocks from an object.

@@ -23,6 +23,7 @@ func NewToolsCmd() *cobra.Command {
 
 	// blocks
 	cmd.AddCommand(newAddblockCmd())
+	cmd.AddCommand(newDividerCmd())
 	cmd.AddCommand(newDelblockCmd())
 	cmd.AddCommand(newAppendmdCmd())
 	cmd.AddCommand(newBlockdumpCmd())
