@@ -28,6 +28,7 @@ func NewToolsCmd() *cobra.Command {
 	cmd.AddCommand(newAppendmdCmd())
 	cmd.AddCommand(newBlockdumpCmd())
 	cmd.AddCommand(newPagedeckCmd())
+	cmd.AddCommand(newLinkCmd())
 	// lookup / inspection (label -> id, id -> details)
 	cmd.AddCommand(newFindCmd())
 	cmd.AddCommand(newDescribeCmd())
@@ -48,8 +49,10 @@ func NewToolsCmd() *cobra.Command {
 	// icons / covers
 	cmd.AddCommand(newSeticonCmd())
 	cmd.AddCommand(newSetcoverCmd())
-	// sets / queries
+	// sets / queries / collections
 	cmd.AddCommand(newMakesetCmd())
+	cmd.AddCommand(newMakecollectionCmd())
+	cmd.AddCommand(newCollectaddCmd())
 
 	return cmd
 }

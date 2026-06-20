@@ -221,7 +221,7 @@ func newBlockdumpCmd() *cobra.Command {
 						kind = "text/" + b.GetText().Style.String()
 						text = b.GetText().Text
 					case b.GetLink() != nil:
-						kind = "link->" + b.GetLink().TargetBlockId
+						kind = "link/" + b.GetLink().CardStyle.String() + "->" + b.GetLink().TargetBlockId
 					case b.GetDataview() != nil:
 						kind = "dataview"
 					case b.GetLayout() != nil:
