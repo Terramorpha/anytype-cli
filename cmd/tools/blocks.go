@@ -40,7 +40,7 @@ var textStyles = map[string]model.BlockContentTextStyle{
 
 // addblock appends a text block of any style to an object via BlockCreate.
 func newAddblockCmd() *cobra.Command {
-	var style, parent, after string
+	var style, parent, after, lang string
 	cmd := &cobra.Command{
 		Use:   "addblock <objectId> <text> [style]",
 		Short: "Append a text block of any style to an object (BlockCreate)",
@@ -75,16 +75,23 @@ func newAddblockCmd() *cobra.Command {
 			} else if after != "" {
 				targetId, position = after, model.Block_Bottom
 			}
+			// A code block's language lives in the block's Fields["lang"].
+			block := &model.Block{
+				Content: &model.BlockContentOfText{
+					Text: &model.BlockContentText{Text: text, Style: st},
+				},
+			}
+			if lang != "" {
+				block.Fields = &types.Struct{Fields: map[string]*types.Value{
+					"lang": {Kind: &types.Value_StringValue{StringValue: lang}},
+				}}
+			}
 			return core.GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
 				resp, err := client.BlockCreate(ctx, &pb.RpcBlockCreateRequest{
 					ContextId: objectId,
 					TargetId:  targetId,
 					Position:  position,
-					Block: &model.Block{
-						Content: &model.BlockContentOfText{
-							Text: &model.BlockContentText{Text: text, Style: st},
-						},
-					},
+					Block:     block,
 				})
 				if err != nil {
 					return err
@@ -92,13 +99,14 @@ func newAddblockCmd() *cobra.Command {
 				if resp.Error != nil && resp.Error.Code != pb.RpcBlockCreateResponseError_NULL {
 					return fmt.Errorf("%s: %s", resp.Error.Code, resp.Error.Description)
 				}
-				return emit(ok(map[string]any{"blockId": resp.BlockId, "style": styleName}))
+				return emit(ok(map[string]any{"blockId": resp.BlockId, "style": styleName, "lang": lang}))
 			})
 		},
 	}
 	cmd.Flags().StringVar(&style, "style", "", "block style (overrides positional): paragraph|h1..h4|callout|quote|code|checkbox|toggle|bulleted|numbered")
 	cmd.Flags().StringVar(&parent, "parent", "", "nest the block inside this parent block id (e.g. a toggle)")
 	cmd.Flags().StringVar(&after, "after", "", "insert the block directly after this sibling block id")
+	cmd.Flags().StringVar(&lang, "lang", "", "code block language (e.g. go, python, js) — only meaningful with --style code")
 	return cmd
 }
 
@@ -193,6 +201,7 @@ func newBlockdumpCmd() *cobra.Command {
 					Id       string   `json:"id"`
 					Kind     string   `json:"kind"`
 					Text     string   `json:"text,omitempty"`
+					Lang     string   `json:"lang,omitempty"`
 					Children []string `json:"children,omitempty"`
 				}
 				var detailKeys []string
@@ -237,7 +246,13 @@ func newBlockdumpCmd() *cobra.Command {
 					if len(text) > 80 {
 						text = text[:77] + "..."
 					}
-					blocks = append(blocks, blk{Id: b.Id, Kind: kind, Text: text, Children: b.ChildrenIds})
+					lang := ""
+					if f := b.GetFields(); f != nil {
+						if v, okv := f.GetFields()["lang"]; okv {
+							lang = v.GetStringValue()
+						}
+					}
+					blocks = append(blocks, blk{Id: b.Id, Kind: kind, Text: text, Lang: lang, Children: b.ChildrenIds})
 				}
 				return emit(map[string]any{
 					"id":      args[0],
