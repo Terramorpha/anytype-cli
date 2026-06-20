@@ -40,12 +40,15 @@ var textStyles = map[string]model.BlockContentTextStyle{
 
 // addblock appends a text block of any style to an object via BlockCreate.
 func newAddblockCmd() *cobra.Command {
-	var style string
+	var style, parent, after string
 	cmd := &cobra.Command{
 		Use:   "addblock <objectId> <text> [style]",
 		Short: "Append a text block of any style to an object (BlockCreate)",
 		Long: "Append a text block. Style via positional arg or --style:\n" +
-			"  paragraph, h1..h4, callout, quote, code, checkbox, toggle, bulleted, numbered",
+			"  paragraph, h1..h4, callout, quote, code, checkbox, toggle, bulleted, numbered\n\n" +
+			"Placement (default: bottom of the object):\n" +
+			"  --parent <blockId>   nest INSIDE a parent block (e.g. fill a toggle/callout)\n" +
+			"  --after  <blockId>   insert directly after a sibling block",
 		Args: cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			objectId, text := args[0], args[1]
@@ -60,10 +63,23 @@ func newAddblockCmd() *cobra.Command {
 			if !ok2 {
 				return fmt.Errorf("unknown style %q", styleName)
 			}
+			if parent != "" && after != "" {
+				return fmt.Errorf("--parent and --after are mutually exclusive")
+			}
+			// Default: append to the bottom of the object. --parent nests the
+			// block inside that block (children); --after places it as the next
+			// sibling of the target.
+			targetId, position := "", model.Block_Bottom
+			if parent != "" {
+				targetId, position = parent, model.Block_Inner
+			} else if after != "" {
+				targetId, position = after, model.Block_Bottom
+			}
 			return core.GRPCCall(func(ctx context.Context, client service.ClientCommandsClient) error {
 				resp, err := client.BlockCreate(ctx, &pb.RpcBlockCreateRequest{
 					ContextId: objectId,
-					Position:  model.Block_Bottom,
+					TargetId:  targetId,
+					Position:  position,
 					Block: &model.Block{
 						Content: &model.BlockContentOfText{
 							Text: &model.BlockContentText{Text: text, Style: st},
@@ -81,6 +97,8 @@ func newAddblockCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&style, "style", "", "block style (overrides positional): paragraph|h1..h4|callout|quote|code|checkbox|toggle|bulleted|numbered")
+	cmd.Flags().StringVar(&parent, "parent", "", "nest the block inside this parent block id (e.g. a toggle)")
+	cmd.Flags().StringVar(&after, "after", "", "insert the block directly after this sibling block id")
 	return cmd
 }
 
@@ -172,8 +190,9 @@ func newBlockdumpCmd() *cobra.Command {
 					return err
 				}
 				type blk struct {
-					Id   string `json:"id"`
-					Kind string `json:"kind"`
+					Id       string   `json:"id"`
+					Kind     string   `json:"kind"`
+					Children []string `json:"children,omitempty"`
 				}
 				var detailKeys []string
 				for _, det := range s.ObjectView.GetDetails() {
@@ -209,7 +228,7 @@ func newBlockdumpCmd() *cobra.Command {
 					default:
 						continue
 					}
-					blocks = append(blocks, blk{Id: b.Id, Kind: kind})
+					blocks = append(blocks, blk{Id: b.Id, Kind: kind, Children: b.ChildrenIds})
 				}
 				return emit(map[string]any{"id": args[0], "details": detailKeys, "blocks": blocks})
 			})
