@@ -40,7 +40,7 @@ var textStyles = map[string]model.BlockContentTextStyle{
 
 // addblock appends a text block of any style to an object via BlockCreate.
 func newAddblockCmd() *cobra.Command {
-	var style, parent, after, lang string
+	var style, parent, after, left, right, lang string
 	cmd := &cobra.Command{
 		Use:   "addblock <objectId> <text> [style]",
 		Short: "Append a text block of any style to an object (BlockCreate)",
@@ -63,17 +63,28 @@ func newAddblockCmd() *cobra.Command {
 			if !ok2 {
 				return fmt.Errorf("unknown style %q", styleName)
 			}
-			if parent != "" && after != "" {
-				return fmt.Errorf("--parent and --after are mutually exclusive")
+			placements := 0
+			for _, s := range []string{parent, after, left, right} {
+				if s != "" {
+					placements++
+				}
 			}
-			// Default: append to the bottom of the object. --parent nests the
-			// block inside that block (children); --after places it as the next
-			// sibling of the target.
+			if placements > 1 {
+				return fmt.Errorf("--parent/--after/--left/--right are mutually exclusive")
+			}
+			// Default: append to the bottom of the object. --parent nests inside
+			// that block; --after is the next sibling; --left/--right place the
+			// block beside the target, which wraps both into a column row.
 			targetId, position := "", model.Block_Bottom
-			if parent != "" {
+			switch {
+			case parent != "":
 				targetId, position = parent, model.Block_Inner
-			} else if after != "" {
+			case after != "":
 				targetId, position = after, model.Block_Bottom
+			case left != "":
+				targetId, position = left, model.Block_Left
+			case right != "":
+				targetId, position = right, model.Block_Right
 			}
 			// A code block's language lives in the block's Fields["lang"].
 			block := &model.Block{
@@ -106,6 +117,8 @@ func newAddblockCmd() *cobra.Command {
 	cmd.Flags().StringVar(&style, "style", "", "block style (overrides positional): paragraph|h1..h4|callout|quote|code|checkbox|toggle|bulleted|numbered")
 	cmd.Flags().StringVar(&parent, "parent", "", "nest the block inside this parent block id (e.g. a toggle)")
 	cmd.Flags().StringVar(&after, "after", "", "insert the block directly after this sibling block id")
+	cmd.Flags().StringVar(&left, "left", "", "place to the LEFT of this block id (forms a column row)")
+	cmd.Flags().StringVar(&right, "right", "", "place to the RIGHT of this block id (forms a column row)")
 	cmd.Flags().StringVar(&lang, "lang", "", "code block language (e.g. go, python, js) — only meaningful with --style code")
 	return cmd
 }
