@@ -40,11 +40,21 @@ func newDvinspectCmd() *cobra.Command {
 					Key    string `json:"key"`
 					Format string `json:"format"`
 				}
+				type filterInfo struct {
+					Key  string `json:"key"`
+					Cond string `json:"cond"`
+				}
+				type sortInfo struct {
+					Key  string `json:"key"`
+					Type string `json:"type"`
+				}
 				type viewInfo struct {
-					Id      string `json:"id"`
-					Name    string `json:"name"`
-					Type    string `json:"type"`
-					GroupBy string `json:"groupBy,omitempty"`
+					Id      string       `json:"id"`
+					Name    string       `json:"name"`
+					Type    string       `json:"type"`
+					GroupBy string       `json:"groupBy,omitempty"`
+					Filters []filterInfo `json:"filters,omitempty"`
+					Sorts   []sortInfo   `json:"sorts,omitempty"`
 				}
 				type dvInfo struct {
 					BlockId       string    `json:"blockId"`
@@ -62,7 +72,14 @@ func newDvinspectCmd() *cobra.Command {
 						dv.RelationLinks = append(dv.RelationLinks, relInfo{Key: rl.Key, Format: rl.Format.String()})
 					}
 					for _, v := range d.GetViews() {
-						dv.Views = append(dv.Views, viewInfo{Id: v.Id, Name: v.Name, Type: v.Type.String(), GroupBy: v.GroupRelationKey})
+						vi := viewInfo{Id: v.Id, Name: v.Name, Type: v.Type.String(), GroupBy: v.GroupRelationKey}
+						for _, f := range v.GetFilters() {
+							vi.Filters = append(vi.Filters, filterInfo{Key: f.RelationKey, Cond: f.Condition.String()})
+						}
+						for _, s := range v.GetSorts() {
+							vi.Sorts = append(vi.Sorts, sortInfo{Key: s.RelationKey, Type: s.Type.String()})
+						}
+						dv.Views = append(dv.Views, vi)
 					}
 					dvs = append(dvs, dv)
 				}

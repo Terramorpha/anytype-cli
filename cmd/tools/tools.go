@@ -42,6 +42,8 @@ func NewToolsCmd() *cobra.Command {
 	cmd.AddCommand(newKanbanCmd())
 	cmd.AddCommand(newDefaultkanbanCmd())
 	cmd.AddCommand(newSetgroupCmd())
+	cmd.AddCommand(newViewfilterCmd())
+	cmd.AddCommand(newViewsortCmd())
 	cmd.AddCommand(newHidegroupCmd())
 	cmd.AddCommand(newSetqCmd())
 	cmd.AddCommand(newEmbedsetCmd())
